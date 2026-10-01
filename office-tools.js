@@ -65,7 +65,14 @@ async function docxToPdf(file){
   if(!window.docx || !window.html2canvas) throw new Error('The Word rendering libraries did not load. Reload the page and try again.');
   const {jsPDF}=await jspdfLib();
   setProgress(8,'Reading Word document…');
-  const stage=$('#conversion-stage');
+  let stage=$('#conversion-stage');
+  if(!stage){
+    stage=document.createElement('div');
+    stage.id='conversion-stage';
+    stage.className='docx-conversion-stage';
+    stage.setAttribute('aria-hidden','true');
+    document.body.appendChild(stage);
+  }
   stage.innerHTML='';
   const styleHost=document.createElement('div');
   styleHost.setAttribute('aria-hidden','true');
