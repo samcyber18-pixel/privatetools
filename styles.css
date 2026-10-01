@@ -17,3 +17,12 @@
 footer{max-width:1180px;margin:0 auto;padding:28px 24px 50px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}footer .footer-links{display:flex;gap:16px}footer a:hover{color:var(--ink)}
 @media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:52px}.tool-grid{grid-template-columns:repeat(2,1fr)}.community-card{grid-template-columns:1fr}.community-grid{grid-template-columns:1fr}}
 @media(max-width:580px){.site-header{padding:17px 18px}.site-header nav{gap:12px;font-size:13px}.site-header nav a:not(.nav-cta){display:none}.hero{padding:46px 18px 56px}.section{padding:58px 18px}.section-heading{display:block}.section-heading>p{margin-top:12px}.tool-grid,.steps,.form-grid,.info-grid{grid-template-columns:1fr}h1{font-size:50px}.modal-panel{margin:10px auto;max-height:calc(100vh - 20px);padding:22px 18px}.file-row{grid-template-columns:auto 1fr auto}.file-row .size{grid-column:2;font-size:12px}.file-row button{grid-column:3;grid-row:1}.tool-page{padding:48px 18px 72px}.community-hero{padding:48px 18px 28px}.community-grid{padding:0 18px 72px}.community-card{padding:26px}footer{padding:24px 18px 40px}}
+
+.office-tool-card{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow)}
+.office-note{margin-top:14px;padding:16px 18px;border:1px solid #d8e7dd;background:var(--soft);border-radius:16px;color:var(--muted)}
+.office-note strong{display:block;color:var(--accent-dark);margin-bottom:4px}
+.office-note p{margin:0;line-height:1.6}
+.docx-render-stage{position:absolute;left:-100000px;top:0;width:794px;min-height:1123px;padding:60px 64px;background:#fff;color:#111;font:16px/1.6 Arial,sans-serif;overflow:visible}
+.docx-render-stage h1,.docx-render-stage h2,.docx-render-stage h3{color:#111;letter-spacing:normal;line-height:1.2}
+.docx-render-stage table{width:100%;border-collapse:collapse;margin:14px 0}.docx-render-stage td,.docx-render-stage th{border:1px solid #bbb;padding:6px}
+@media(max-width:580px){.office-tool-card{padding:18px}}

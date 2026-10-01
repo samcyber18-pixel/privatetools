@@ -38,3 +38,15 @@ Then open `http://localhost:8000/`.
 - Vendor `pdf-lib` locally so the PDF engine is no longer fetched from a CDN.
 - Add analytics/Search Console after the product pages are stable.
 - Use actual request and traffic data to choose the next tools.
+
+
+## v4 Office/PDF conversion cluster
+
+Added browser-first Office/PDF conversion tools:
+
+- DOCX → PDF (HTML-rendered, text/layout focused)
+- PDF → DOCX (text extraction into a new DOCX)
+- PPTX → PDF (browser slide rendering to PDF)
+- PDF → PPTX (each PDF page is placed as an image on a slide)
+
+The reverse conversions are intentionally labeled because browser-side Office conversion does not guarantee pixel-perfect or fully editable equivalence to Microsoft Office. The selected source file is handled in the browser; the page downloads third-party JavaScript libraries needed for conversion.
