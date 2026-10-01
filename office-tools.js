@@ -76,11 +76,8 @@ async function docxToPdf(file){
     stage.setAttribute('aria-hidden','true');
     document.body.appendChild(stage);
   }
-
-  // Do not use the library's renderAsync() helper here. It calls innerHTML on
-  // the supplied containers internally; using parseAsync + renderDocument lets
-  // us own the DOM targets and avoids the null-container failure seen before.
   stage.replaceChildren();
+
   const styleHost=document.createElement('div');
   const bodyHost=document.createElement('div');
   styleHost.className='docx-style-host';
@@ -109,7 +106,6 @@ async function docxToPdf(file){
   const doc=await window.docx.parseAsync(await file.arrayBuffer(), options);
   const nodes=await window.docx.renderDocument(doc, options);
   if(!Array.isArray(nodes) || nodes.length===0) throw new Error('The Word document could not be rendered.');
-
   for(const node of nodes){
     (node.nodeName === 'STYLE' ? styleHost : bodyHost).appendChild(node);
   }
@@ -117,20 +113,104 @@ async function docxToPdf(file){
   await waitForFonts();
   await nextFrame();
 
-  let pages=[...bodyHost.querySelectorAll('section.docx')];
-  if(!pages.length) pages=[...bodyHost.querySelectorAll('.docx-wrapper > section')];
-  if(!pages.length) pages=[...bodyHost.querySelectorAll('section')];
-  if(!pages.length) throw new Error('No Word pages could be rendered from this document.');
+  const sourcePages=[...bodyHost.querySelectorAll('.docx-wrapper>section.docx')];
+  if(!sourcePages.length) throw new Error('No Word page container was produced.');
 
-  setProgress(25,`Rendered ${pages.length} Word page${pages.length===1?'':'s'}; preparing PDF…`);
+  // docx-preview honors explicit/page-break markers, but it does not perform
+  // live re-pagination for ordinary flowing text. A normal multi-page Word
+  // file can therefore render as one fixed-height section with the overflow
+  // clipped. We paginate the rendered block-level content ourselves using the
+  // actual Word page height/width produced by the library.
+  const outputWrapper=document.createElement('div');
+  outputWrapper.className='docx-wrapper docx-wrapper-output';
+  bodyHost.appendChild(outputWrapper);
 
-  const measured=pages.map((page,index)=>{
-    const rect=page.getBoundingClientRect();
-    const width=rect.width || page.scrollWidth;
-    const height=rect.height || page.scrollHeight;
+  const generatedPages=[];
+  for(let si=0; si<sourcePages.length; si++){
+    const source=sourcePages[si];
+    const rect=source.getBoundingClientRect();
+    const pageWidth=rect.width || source.offsetWidth;
+    const pageHeight=rect.height || parseFloat(getComputedStyle(source).minHeight) || source.offsetHeight;
+    if(!pageWidth || !pageHeight) throw new Error(`Word page ${si+1} has no measurable page geometry.`);
+
+    const article=source.querySelector(':scope > article');
+    const header=source.querySelector(':scope > header');
+    const footer=source.querySelector(':scope > footer');
+
+    if(!article){
+      const clone=source.cloneNode(true);
+      clone.style.width=`${pageWidth}px`;
+      clone.style.height=`${pageHeight}px`;
+      clone.style.minHeight=`${pageHeight}px`;
+      outputWrapper.appendChild(clone);
+      generatedPages.push(clone);
+      continue;
+    }
+
+    const articleRect=article.getBoundingClientRect();
+    const footerTop=footer ? footer.getBoundingClientRect().top : (rect.top+pageHeight);
+    const usableHeight=Math.max(1, footerTop-articleRect.top);
+    const children=[...article.children];
+
+    // If this section already contains separate source page content, keep it;
+    // otherwise split its flowing blocks across as many physical pages as are
+    // necessary. We use block boundaries so text is not sliced mid-line.
+    let groups=[[]];
+    let groupStartTop=null;
+    for(const child of children){
+      const cr=child.getBoundingClientRect();
+      const top=cr.top-articleRect.top;
+      const bottom=cr.bottom-articleRect.top;
+      if(groupStartTop===null) groupStartTop=top;
+      const wouldOverflow = groups[groups.length-1].length>0 && (bottom-groupStartTop)>usableHeight+0.5;
+      if(wouldOverflow){
+        groups.push([]);
+        groupStartTop=top;
+      }
+      groups[groups.length-1].push(child);
+    }
+    if(!groups.length || !groups[0].length) groups=[[]];
+
+    for(let gi=0; gi<groups.length; gi++){
+      const page=source.cloneNode(false);
+      page.style.width=`${pageWidth}px`;
+      page.style.height=`${pageHeight}px`;
+      page.style.minHeight=`${pageHeight}px`;
+      page.style.overflow='hidden';
+
+      if(header) page.appendChild(header.cloneNode(true));
+      const pageArticle=article.cloneNode(false);
+      pageArticle.innerHTML='';
+      pageArticle.style.minHeight='0';
+      pageArticle.style.height='auto';
+      for(const child of groups[gi]) pageArticle.appendChild(child.cloneNode(true));
+      page.appendChild(pageArticle);
+      if(footer) page.appendChild(footer.cloneNode(true));
+
+      outputWrapper.appendChild(page);
+      generatedPages.push(page);
+    }
+  }
+
+  if(!generatedPages.length) throw new Error('No Word pages could be generated.');
+
+  // Hide the original renderer output now that all measurements/clones are complete.
+  // It remains in the DOM so its computed styles stay valid while generated pages render.
+  for(const source of sourcePages) source.style.display='none';
+
+  await nextFrame();
+  await waitForFonts();
+  await nextFrame();
+
+  const measured=generatedPages.map((page,index)=>{
+    const r=page.getBoundingClientRect();
+    const width=r.width || page.offsetWidth;
+    const height=r.height || page.offsetHeight;
     if(!width || !height) throw new Error(`Word page ${index+1} has no measurable layout.`);
     return {page,width,height};
   });
+
+  setProgress(22,`Paginated ${measured.length} Word page${measured.length===1?'':'s'}; preparing PDF…`);
 
   const pxToMm=25.4/96;
   const first=measured[0];
@@ -143,8 +223,6 @@ async function docxToPdf(file){
 
   for(let i=0;i<measured.length;i++){
     const {page,width,height}=measured[i];
-    // Temporarily move the page into a predictable viewport position so
-    // html2canvas doesn't lose content on very large/off-screen documents.
     const previous={position:page.style.position,left:page.style.left,top:page.style.top,margin:page.style.margin};
     page.style.position='relative';
     page.style.left='0';
@@ -175,14 +253,14 @@ async function docxToPdf(file){
     }
     const jpeg=canvas.toDataURL('image/jpeg',0.95);
     pdf.addImage(jpeg,'JPEG',0,0,width*pxToMm,height*pxToMm,'FAST');
-    setProgress(25+Math.round((i+1)/measured.length*70),`Added page ${i+1} of ${measured.length}`);
+    setProgress(22+Math.round((i+1)/measured.length*72),`Added page ${i+1} of ${measured.length}`);
     canvas.width=1;
     canvas.height=1;
   }
 
   const blob=pdf.output('blob');
   downloadBlob(blob,`${file.name.replace(/\.docx$/i,'')}.pdf`);
-  showResult(`Done. Created a ${measured.length}-page PDF (${fmt(blob.size)}). <strong>Note:</strong> browser rendering is designed to preserve Word pagination and page geometry more closely, but some Microsoft Word-specific features can still differ.`);
+  showResult(`Done. Created a ${measured.length}-page PDF (${fmt(blob.size)}). <strong>Pagination:</strong> content is split at rendered block boundaries to prevent ordinary multi-page documents from being clipped into a single page. Complex Word-specific layout can still differ from Microsoft Word.`);
   stage.replaceChildren();
 }
 

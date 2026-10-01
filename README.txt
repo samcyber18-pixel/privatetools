@@ -1,5 +1,6 @@
-PrivateTools DOCX -> PDF fix 3
+DOCX to PDF pagination fix 5
 
-Replace the existing docx-to-pdf.html and office-tools.js in the repository.
+Fixes the pagination pass so source page geometry remains attached while the renderer measures content.
+Flowing block-level content is grouped into fixed-size page containers before PDF capture.
 
-This version bypasses docx-preview's renderAsync DOM helper and uses parseAsync + renderDocument so the application controls both output containers directly. It also keeps Word's last-rendered-page-break markers enabled for better pagination.
+Replace docx-to-pdf.html and office-tools.js in the PrivateTools repository.
