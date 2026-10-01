@@ -1,0 +1,1 @@
+PrivateTools DOCX→PDF fix. Replace docx-to-pdf.html and office-tools.js in the existing GitHub repository. This changes DOCX→PDF from Mammoth full-document capture to docx-preview page-by-page rendering before PDF creation. Other Office/PDF tool functions remain in office-tools.js.
