@@ -1,6 +1,6 @@
-# PrivateTools v2
+# PrivateTools v3
 
-A small static toolbox for browser-based image and PDF utilities.
+A small static toolbox for browser-based image and PDF utilities, with a community roadmap layer.
 
 ## Included tools
 
@@ -8,6 +8,10 @@ A small static toolbox for browser-based image and PDF utilities.
 2. Image Converter & Resizer
 3. PDF Merger
 4. PDF Splitter
+
+## Community
+
+The site now has a community page that points users to GitHub Discussions for tool requests, discussion and polls during the zero-budget phase.
 
 ## Privacy model
 
@@ -27,8 +31,10 @@ python -m http.server 8000
 
 Then open `http://localhost:8000/`.
 
-## Notes
+## Next planned steps
 
-- PNG browser encoding is lossless; the quality slider does not make PNG output lossy.
-- Very large files can be limited by device/browser memory.
-- Unusual or encrypted PDFs may not be supported by the PDF library.
+- Enable GitHub Discussions on the repository.
+- Add a Giscus-backed comment experience once Discussions is enabled.
+- Vendor `pdf-lib` locally so the PDF engine is no longer fetched from a CDN.
+- Add analytics/Search Console after the product pages are stable.
+- Use actual request and traffic data to choose the next tools.

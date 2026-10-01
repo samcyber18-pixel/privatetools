@@ -1,123 +1,40 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1f6b4a">
-  <meta name="description" content="PrivateTools — free privacy-first browser tools for compressing and converting images and merging or splitting PDFs. Files stay in your browser during processing.">
+  <meta name="description" content="PrivateTools — free browser tools for compressing and converting images and merging or splitting PDFs. Local-first file processing with no account required.">
+  <meta property="og:title" content="PrivateTools — Free Private File Tools">
+  <meta property="og:description" content="Compress, convert, merge and split files in your browser.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="canonical" href="https://samcyber18-pixel.github.io/privatetools/">
   <title>PrivateTools — Free Private File Tools</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="#top" aria-label="PrivateTools home">Private<span>Tools</span></a>
-    <nav aria-label="Main navigation">
-      <a href="#tools">Tools</a>
-      <a href="privacy.html">Privacy</a>
-      <a href="#about">About</a>
-    </nav>
-  </header>
-
-  <main id="top">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">FREE · PRIVATE · IN YOUR BROWSER</p>
-        <h1>Useful file tools.<br><span>No uploads required.</span></h1>
-        <p class="hero-text">Compress, convert, merge and split common files directly in your browser. The four tools in this release process the selected file data on your device.</p>
-        <a class="primary-button" href="#tools">Open the tools</a>
-      </div>
-      <div class="privacy-card" aria-label="Privacy summary">
-        <div class="privacy-icon" aria-hidden="true">✓</div>
-        <strong>Local file processing</strong>
-        <p>The file itself does not need to be sent to an application server. That keeps the first version lightweight and inexpensive to operate.</p>
-        <div class="privacy-pills"><span>No account</span><span>No file API</span><span>Static site</span></div>
-      </div>
-    </section>
-
-    <section id="tools" class="section">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">TOOLBOX</p>
-          <h2>Four tools. One place.</h2>
-        </div>
-        <p>Pick a task, process your file, and download the result.</p>
-      </div>
-
-      <div class="tool-grid">
-        <article class="tool-card">
-          <div class="tool-number">01</div>
-          <h3>Compress images</h3>
-          <p>Compress multiple JPG, PNG or WebP images with a quality control and optional output conversion.</p>
-          <a class="tool-button" href="image-compressor.html">Open tool <span aria-hidden="true">→</span></a>
-        </article>
-        <article class="tool-card">
-          <div class="tool-number">02</div>
-          <h3>Convert & resize images</h3>
-          <p>Convert between JPG, PNG and WebP and resize images while preserving proportions when desired.</p>
-          <a class="tool-button" href="image-converter.html">Open tool <span aria-hidden="true">→</span></a>
-        </article>
-        <article class="tool-card">
-          <div class="tool-number">03</div>
-          <h3>Merge PDFs</h3>
-          <p>Combine multiple PDF files into a single PDF and remove files before processing if needed.</p>
-          <a class="tool-button" href="pdf-merger.html">Open tool <span aria-hidden="true">→</span></a>
-        </article>
-        <article class="tool-card">
-          <div class="tool-number">04</div>
-          <h3>Split PDFs</h3>
-          <p>Select pages or ranges such as 1,3,5-7 and generate a new PDF from the chosen pages.</p>
-          <a class="tool-button" href="pdf-splitter.html">Open tool <span aria-hidden="true">→</span></a>
-        </article>
-      </div>
-    </section>
-
-    <section class="section how-it-works">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">HOW IT WORKS</p>
-          <h2>Simple by design.</h2>
-        </div>
-      </div>
-      <div class="steps">
-        <div><span>1</span><h3>Select</h3><p>Choose your file or drag it into the tool.</p></div>
-        <div><span>2</span><h3>Process</h3><p>Your browser performs the core file operation.</p></div>
-        <div><span>3</span><h3>Download</h3><p>Save the new file back to your device.</p></div>
-      </div>
-    </section>
-
-    <section id="privacy" class="section privacy-section">
-      <p class="eyebrow">PRIVACY</p>
-      <h2>Built around local-first processing.</h2>
-      <p>For the four file operations in this version, PrivateTools does not require a backend that receives the selected file. Image processing uses browser image/canvas APIs. PDF processing uses the PDF library loaded by the page. This describes how the tool is designed to process files; it is not a legal certification or guarantee.</p>
-    </section>
-
-    <section id="about" class="section about-section">
-      <p class="eyebrow">ABOUT</p>
-      <h2>A growing collection of small tools.</h2>
-      <p>The long-term product is a library of focused utilities: fast free tools first, then optional premium features for higher limits, automation and batch workflows.</p>
-    </section>
-  </main>
-
-  <div id="tool-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-close-modal></div>
-    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-subtitle">
-      <button class="close-button" data-close-modal aria-label="Close">×</button>
-      <div id="tool-content"></div>
-    </section>
-  </div>
-
-  <footer>PrivateTools · Local-first browser utilities · <a href="privacy.html">Privacy</a></footer>
-
-  <!-- Pinned version. For a fully air-gapped release, vendor this library into lib/. -->
-  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
-  <script src="app.js"></script>
-  <script>
-    // Open a tool automatically when the homepage is reached with #tool=...
-    window.addEventListener('DOMContentLoaded', () => {
-      const key = new URLSearchParams(location.hash.replace(/^#/, '')).get('tool');
-      if (key && typeof window.openTool === 'function') window.openTool(key);
-    });
-  </script>
-
-</body>
-</html>
+<header class="site-header">
+  <a class="brand" href="index.html" aria-label="PrivateTools home"><span class="brand-mark">P</span>Private<span>Tools</span></a>
+  <nav aria-label="Main navigation"><a href="#tools">Tools</a><a href="community.html">Community</a><a href="privacy.html">Privacy</a><a class="nav-cta" href="community.html#request">Suggest a tool</a></nav>
+</header>
+<main id="top">
+<section class="hero"><div class="hero-copy"><p class="eyebrow">FREE · PRIVATE · IN YOUR BROWSER</p><h1>Useful file tools.<br><span>No uploads required.</span></h1><p class="hero-text">Compress, convert, merge and split common files directly in your browser. The current four tools process the selected file data on your device.</p><div class="button-row"><a class="primary-button" href="#tools">Open the tools</a><a class="secondary-button" href="community.html">Help shape the toolbox</a></div></div><div class="privacy-card" aria-label="Privacy summary"><div class="privacy-icon" aria-hidden="true">✓</div><strong>Local-first file processing</strong><p>Your selected files are handled by the browser for the core four tools instead of being sent to an application backend.</p><div class="privacy-pills"><span>No account</span><span>No file upload API</span><span>Static site</span></div></div></section>
+<section id="tools" class="section"><div class="section-heading"><div><p class="eyebrow">TOOLBOX</p><h2>Four tools. One place.</h2></div><p>Pick a task, process your file, and download the result.</p></div>
+<div class="tool-grid">
+<article class="tool-card"><div class="tool-number">01</div><h3>Compress images</h3><p>Compress JPG, PNG or WebP images with quality control and optional output conversion.</p><a class="tool-button" href="image-compressor.html">Open tool <span>→</span></a></article>
+<article class="tool-card"><div class="tool-number">02</div><h3>Convert & resize images</h3><p>Convert between JPG, PNG and WebP and resize images while preserving proportions when desired.</p><a class="tool-button" href="image-converter.html">Open tool <span>→</span></a></article>
+<article class="tool-card"><div class="tool-number">03</div><h3>Merge PDFs</h3><p>Combine multiple PDFs into one file and remove files before processing if needed.</p><a class="tool-button" href="pdf-merger.html">Open tool <span>→</span></a></article>
+<article class="tool-card"><div class="tool-number">04</div><h3>Split PDFs</h3><p>Select pages or ranges such as 1,3,5-7 and create a new PDF from the chosen pages.</p><a class="tool-button" href="pdf-splitter.html">Open tool <span>→</span></a></article>
+</div></section>
+<section class="section community-section"><div class="community-card"><div><p class="eyebrow">COMMUNITY</p><h2>Tell us what PrivateTools should build next.</h2><p>Suggest a tool, discuss improvements and vote on ideas. The goal is to let actual users help shape the toolbox.</p></div><a class="community-button" href="community.html">Open community →</a></div></section>
+<section class="section how-it-works"><div class="section-heading"><div><p class="eyebrow">HOW IT WORKS</p><h2>Simple by design.</h2></div></div><div class="steps"><div><span>1</span><h3>Select</h3><p>Choose your file or drag it into the tool.</p></div><div><span>2</span><h3>Process</h3><p>Your browser performs the core file operation.</p></div><div><span>3</span><h3>Download</h3><p>Save the new file back to your device.</p></div></div></section>
+<section class="section privacy-section"><p class="eyebrow">PRIVACY</p><h2>Built around local-first processing.</h2><p>For the four file operations in this release, PrivateTools does not require an application backend that receives the selected file. Image processing uses browser APIs, while PDF processing uses the PDF library loaded by the page. Read the <a class="inline-link" href="privacy.html">privacy page</a> for the current details.</p></section>
+<section id="about" class="section about-section"><p class="eyebrow">ABOUT</p><h2>A growing collection of small tools.</h2><p>The long-term product is a library of focused utilities: useful free tools first, then optional premium features for higher limits, automation and batch workflows.</p></section>
+</main>
+<div id="tool-modal" class="modal hidden" aria-hidden="true"><div class="modal-backdrop" data-close-modal></div><section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-subtitle"><button class="close-button" data-close-modal aria-label="Close">×</button><div id="tool-content"></div></section></div>
+<footer><span>PrivateTools · Local-first browser utilities</span><span class="footer-links"><a href="community.html">Community</a><a href="privacy.html">Privacy</a></span></footer>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
+<script src="app.js"></script>
+<script>window.addEventListener('DOMContentLoaded',()=>{const key=new URLSearchParams(location.hash.replace(/^#/, '')).get('tool');if(key&&typeof window.openTool==='function')window.openTool(key);});</script>
+</body></html>
