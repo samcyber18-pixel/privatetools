@@ -62,10 +62,13 @@ async function nextFrame(){await new Promise(r=>requestAnimationFrame(()=>reques
 async function waitForFonts(){if(document.fonts?.ready) await document.fonts.ready;}
 
 async function docxToPdf(file){
-  if(!window.docx || !window.html2canvas) throw new Error('The Word rendering libraries did not load. Reload the page and try again.');
+  if(!window.docx || typeof window.docx.parseAsync !== 'function' || typeof window.docx.renderDocument !== 'function'){
+    throw new Error('The Word rendering library did not load correctly. Reload the page and try again.');
+  }
   const {jsPDF}=await jspdfLib();
   setProgress(8,'Reading Word document…');
-  let stage=$('#conversion-stage');
+
+  let stage=document.querySelector('#conversion-stage');
   if(!stage){
     stage=document.createElement('div');
     stage.id='conversion-stage';
@@ -73,13 +76,18 @@ async function docxToPdf(file){
     stage.setAttribute('aria-hidden','true');
     document.body.appendChild(stage);
   }
-  stage.innerHTML='';
+
+  // Do not use the library's renderAsync() helper here. It calls innerHTML on
+  // the supplied containers internally; using parseAsync + renderDocument lets
+  // us own the DOM targets and avoids the null-container failure seen before.
+  stage.replaceChildren();
   const styleHost=document.createElement('div');
-  styleHost.setAttribute('aria-hidden','true');
-  stage.appendChild(styleHost);
   const bodyHost=document.createElement('div');
-  stage.appendChild(bodyHost);
-  await window.docx.renderAsync(await file.arrayBuffer(), bodyHost, styleHost, {
+  styleHost.className='docx-style-host';
+  bodyHost.className='docx-body-host';
+  stage.append(styleHost, bodyHost);
+
+  const options={
     inWrapper:true,
     breakPages:true,
     ignoreWidth:false,
@@ -90,23 +98,59 @@ async function docxToPdf(file){
     renderFooters:true,
     renderFootnotes:true,
     renderEndnotes:true,
-    useBase64URL:true
-  });
+    useBase64URL:true,
+    renderChanges:false,
+    renderComments:false,
+    renderAltChunks:true,
+    experimental:false,
+    debug:false
+  };
+
+  const doc=await window.docx.parseAsync(await file.arrayBuffer(), options);
+  const nodes=await window.docx.renderDocument(doc, options);
+  if(!Array.isArray(nodes) || nodes.length===0) throw new Error('The Word document could not be rendered.');
+
+  for(const node of nodes){
+    (node.nodeName === 'STYLE' ? styleHost : bodyHost).appendChild(node);
+  }
+
   await waitForFonts();
   await nextFrame();
-  const pages=[...bodyHost.querySelectorAll('section.docx')];
-  if(!pages.length) throw new Error('No Word pages could be rendered.');
+
+  let pages=[...bodyHost.querySelectorAll('section.docx')];
+  if(!pages.length) pages=[...bodyHost.querySelectorAll('.docx-wrapper > section')];
+  if(!pages.length) pages=[...bodyHost.querySelectorAll('section')];
+  if(!pages.length) throw new Error('No Word pages could be rendered from this document.');
+
   setProgress(25,`Rendered ${pages.length} Word page${pages.length===1?'':'s'}; preparing PDF…`);
-  const firstRect=pages[0].getBoundingClientRect();
-  const firstW=firstRect.width;
-  const firstH=firstRect.height;
-  if(!firstW || !firstH) throw new Error('The Word page layout could not be measured.');
-  const pxToMm=25.4/96;
-  const pdf=new jsPDF({orientation:firstW>=firstH?'landscape':'portrait',unit:'mm',format:[firstW*pxToMm,firstH*pxToMm],compress:true});
-  for(let i=0;i<pages.length;i++){
-    const page=pages[i];
+
+  const measured=pages.map((page,index)=>{
     const rect=page.getBoundingClientRect();
-    if(!rect.width || !rect.height) throw new Error(`Word page ${i+1} has no measurable layout.`);
+    const width=rect.width || page.scrollWidth;
+    const height=rect.height || page.scrollHeight;
+    if(!width || !height) throw new Error(`Word page ${index+1} has no measurable layout.`);
+    return {page,width,height};
+  });
+
+  const pxToMm=25.4/96;
+  const first=measured[0];
+  const pdf=new jsPDF({
+    orientation:first.width>=first.height?'landscape':'portrait',
+    unit:'mm',
+    format:[first.width*pxToMm,first.height*pxToMm],
+    compress:true
+  });
+
+  for(let i=0;i<measured.length;i++){
+    const {page,width,height}=measured[i];
+    // Temporarily move the page into a predictable viewport position so
+    // html2canvas doesn't lose content on very large/off-screen documents.
+    const previous={position:page.style.position,left:page.style.left,top:page.style.top,margin:page.style.margin};
+    page.style.position='relative';
+    page.style.left='0';
+    page.style.top='0';
+    page.style.margin='0';
+    await nextFrame();
     const canvas=await html2canvas(page,{
       backgroundColor:'#ffffff',
       scale:2,
@@ -114,21 +158,32 @@ async function docxToPdf(file){
       allowTaint:false,
       logging:false,
       imageTimeout:20000,
-      width:Math.ceil(rect.width),
-      height:Math.ceil(rect.height),
-      windowWidth:Math.ceil(rect.width),
-      windowHeight:Math.ceil(rect.height)
+      width:Math.ceil(width),
+      height:Math.ceil(height),
+      scrollX:0,
+      scrollY:0,
+      windowWidth:Math.max(window.innerWidth,Math.ceil(width)),
+      windowHeight:Math.max(window.innerHeight,Math.ceil(height))
     });
-    if(i){pdf.addPage([rect.width*pxToMm,rect.height*pxToMm],rect.width>=rect.height?'landscape':'portrait');}
+    page.style.position=previous.position;
+    page.style.left=previous.left;
+    page.style.top=previous.top;
+    page.style.margin=previous.margin;
+
+    if(i){
+      pdf.addPage([width*pxToMm,height*pxToMm],width>=height?'landscape':'portrait');
+    }
     const jpeg=canvas.toDataURL('image/jpeg',0.95);
-    pdf.addImage(jpeg,'JPEG',0,0,rect.width*pxToMm,rect.height*pxToMm,'FAST');
-    setProgress(25+Math.round((i+1)/pages.length*70),`Added page ${i+1} of ${pages.length}`);
-    canvas.width=1;canvas.height=1;
+    pdf.addImage(jpeg,'JPEG',0,0,width*pxToMm,height*pxToMm,'FAST');
+    setProgress(25+Math.round((i+1)/measured.length*70),`Added page ${i+1} of ${measured.length}`);
+    canvas.width=1;
+    canvas.height=1;
   }
+
   const blob=pdf.output('blob');
   downloadBlob(blob,`${file.name.replace(/\.docx$/i,'')}.pdf`);
-  showResult(`Done. Created a ${pages.length}-page PDF (${fmt(blob.size)}). <strong>Note:</strong> browser rendering is much closer to Word page layout than the previous HTML-flattening method, but Microsoft Word-specific edge cases can still differ.`);
-  stage.innerHTML='';
+  showResult(`Done. Created a ${measured.length}-page PDF (${fmt(blob.size)}). <strong>Note:</strong> browser rendering is designed to preserve Word pagination and page geometry more closely, but some Microsoft Word-specific features can still differ.`);
+  stage.replaceChildren();
 }
 
 function groupPdfText(items){
