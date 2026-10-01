@@ -1,36 +1,34 @@
-# PrivateTools v1
+# PrivateTools v2
 
-Four browser tools:
+A small static toolbox for browser-based image and PDF utilities.
 
-1. Compress images
-2. Convert & resize images
-3. Merge PDFs
-4. Split PDFs
+## Included tools
 
-## Current behavior
+1. Image Compressor
+2. Image Converter & Resizer
+3. PDF Merger
+4. PDF Splitter
 
-Image files are decoded and processed in the browser. The PDF operations are performed in the browser with `pdf-lib` loaded from a pinned jsDelivr URL.
+## Privacy model
 
-The selected file contents are not sent to an application backend by this code. The PDF engine itself is loaded from the CDN as JavaScript, so an internet connection is currently required for the PDF tools to initialize.
+The four core file operations are designed to process selected files in the browser without an application backend receiving the file contents. The current PDF tools load `pdf-lib` from a pinned jsDelivr URL, so the PDF engine requires an internet connection to initialize.
 
-For the strongest privacy and offline story before public launch, vendor/bundle the pinned PDF library locally instead of using the CDN script in `index.html`.
+## Hosting
+
+The project is static HTML/CSS/JavaScript and can be deployed to GitHub Pages or another static host.
 
 ## Local testing
 
-Run a local HTTP server from this directory:
+From this directory, run:
 
 ```bash
 python -m http.server 8000
 ```
 
-Open `http://localhost:8000`.
-
-## Deployment
-
-This is a static site and does not need a database or application server for these four tools. It can be deployed to a static host.
+Then open `http://localhost:8000/`.
 
 ## Notes
 
-- Browser PNG encoding is lossless; the quality slider does not make PNG output lossy. The compressor offers WebP/JPG for stronger reduction.
-- Very large files are limited by device/browser memory.
-- Some encrypted or unusual PDFs may not be supported by the PDF library. The UI reports failures instead of silently producing a bad result.
+- PNG browser encoding is lossless; the quality slider does not make PNG output lossy.
+- Very large files can be limited by device/browser memory.
+- Unusual or encrypted PDFs may not be supported by the PDF library.

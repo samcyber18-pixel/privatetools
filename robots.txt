@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://samcyber18-pixel.github.io/privatetools/sitemap.xml
