@@ -1,9 +1,5 @@
-PrivateTools — PDF file selection fix
+PrivateTools — PDF file-selection fix 2
 
-Replace the existing office-tools.js in the GitHub repository with the supplied file.
-This keeps the current Office conversion implementations and makes file selection more robust:
-- responds to both change and input events
-- accepts PDF by extension or MIME type
-- lets clicking the drop zone open the file picker
-- shows the selected filename and size
-- handles browser FileList timing more defensively
+Root cause fixed: the previous validation inferred the INPUT file type from the OUTPUT tool name. For example, "pdf-to-docx" incorrectly matched "docx" and rejected PDFs. This version stores sourceExts explicitly per tool and uses those for validation and error messages.
+
+Replace the existing office-tools.js in the GitHub repository, commit to main, and wait for GitHub Pages deployment.

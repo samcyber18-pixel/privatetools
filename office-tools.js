@@ -32,10 +32,10 @@ function wireInput(input,zone,onFile){
   zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');pick(e.dataTransfer?.files)});
 }
 const configs={
-  'docx-to-pdf':{accept:'.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',label:'Choose a Word document',hint:'DOCX · processed in your browser',idle:'Convert to PDF'},
-  'pdf-to-docx':{accept:'.pdf,application/pdf',label:'Choose a PDF',hint:'PDF · text-focused conversion',idle:'Convert to Word'},
-  'pptx-to-pdf':{accept:'.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation',label:'Choose a PowerPoint file',hint:'PPTX · rendered locally to PDF',idle:'Convert to PDF'},
-  'pdf-to-pptx':{accept:'.pdf,application/pdf',label:'Choose a PDF',hint:'PDF · each page becomes a PowerPoint slide',idle:'Convert to PowerPoint'}
+  'docx-to-pdf':{accept:'.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',sourceExts:['.docx'],sourceLabel:'DOCX',label:'Choose a Word document',hint:'DOCX · processed in your browser',idle:'Convert to PDF'},
+  'pdf-to-docx':{accept:'.pdf,application/pdf',sourceExts:['.pdf'],sourceLabel:'PDF',label:'Choose a PDF',hint:'PDF · text-focused conversion',idle:'Convert to Word'},
+  'pptx-to-pdf':{accept:'.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation',sourceExts:['.pptx'],sourceLabel:'PPTX',label:'Choose a PowerPoint file',hint:'PPTX · rendered locally to PDF',idle:'Convert to PDF'},
+  'pdf-to-pptx':{accept:'.pdf,application/pdf',sourceExts:['.pdf'],sourceLabel:'PDF',label:'Choose a PDF',hint:'PDF · each page becomes a PowerPoint slide',idle:'Convert to PowerPoint'}
 };
 async function pdfJs(){
   if(window.__pdfjs) return window.__pdfjs;
@@ -58,7 +58,7 @@ function init(){
   const cfg=configs[kind]; if(!cfg) return;
   const input=$('#office-file'),zone=$('#office-drop'),info=$('#office-info'),run=$('#office-run'),clear=$('#office-clear');
   if(!input || !zone || !info || !run || !clear) return;
-  const allowedExts = kind.includes('docx') ? ['.docx'] : kind.includes('pptx') ? ['.pptx'] : ['.pdf'];
+  const allowedExts = cfg.sourceExts;
   let file=null;
   const setSelectedFile=(candidate)=>{
     const accepted = candidate && validExt(candidate, allowedExts);
@@ -82,7 +82,7 @@ function init(){
   input.addEventListener('focus',()=>setTimeout(()=>{ if(input.files?.length) setSelectedFile(input.files[0]); },0));
   clear.addEventListener('click',()=>{file=null;input.value='';info.textContent='No file selected.';const result=$('#office-result');if(result) result.innerHTML='';resetProgress();});
   run.addEventListener('click',async()=>{
-    if(!file)return showResult(`Choose a ${kind.includes('pptx')?'PPTX':kind.includes('docx')?'DOCX':'PDF'} file first.`,true);
+    if(!file)return showResult(`Choose a ${cfg.sourceLabel} file first.`,true);
     setBusy(true,cfg.idle,'Converting…'); resetProgress(); setProgress(2,'Loading conversion engine…');
     try{
       if(kind==='docx-to-pdf') await docxToPdf(file);
