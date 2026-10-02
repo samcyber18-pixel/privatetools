@@ -8,8 +8,29 @@ function showResult(msg,error=false){const el=$('#office-result');el.innerHTML=`
 function setBusy(busy,idle='Convert and download',active='Converting…'){const b=$('#office-run');b.disabled=busy;b.textContent=busy?active:idle;}
 function setProgress(value,text){const wrap=$('#office-progress');const bar=wrap.querySelector('.progress>div');wrap.classList.remove('hidden');bar.style.width=`${Math.max(0,Math.min(100,value))}%`;$('#office-progress-text').textContent=text||'';}
 function resetProgress(){const w=$('#office-progress');w.classList.add('hidden');w.querySelector('.progress>div').style.width='0%';$('#office-progress-text').textContent='';}
-function validExt(file, exts){const n=file?.name?.toLowerCase()||'';return !!file && exts.some(e=>n.endsWith(e));}
-function wireInput(input,zone,onFile){const pick=(files)=>{const f=files?.[0];onFile(f||null)};input.addEventListener('change',()=>pick(input.files));zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');pick(e.dataTransfer.files)})}
+function validExt(file, exts){
+  if(!file) return false;
+  const n=(file.name||'').toLowerCase();
+  const type=(file.type||'').toLowerCase();
+  return exts.some(e=>n.endsWith(e)) || (exts.includes('.pdf') && type==='application/pdf') || (exts.includes('.docx') && type==='application/vnd.openxmlformats-officedocument.wordprocessingml.document') || (exts.includes('.pptx') && type==='application/vnd.openxmlformats-officedocument.presentationml.presentation');
+}
+function wireInput(input,zone,onFile){
+  if(!input || !zone) return;
+  const pick=(files)=>{
+    const f=files && files.length ? files[0] : null;
+    onFile(f||null);
+  };
+  const syncFromInput=()=>pick(input.files);
+  input.addEventListener('change',syncFromInput);
+  input.addEventListener('input',syncFromInput);
+  zone.addEventListener('click',e=>{
+    if(e.target.closest('label') || e.target.closest('input')) return;
+    input.click();
+  });
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover')});
+  zone.addEventListener('dragleave',e=>{if(!zone.contains(e.relatedTarget)) zone.classList.remove('dragover')});
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');pick(e.dataTransfer?.files)});
+}
 const configs={
   'docx-to-pdf':{accept:'.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',label:'Choose a Word document',hint:'DOCX · processed in your browser',idle:'Convert to PDF'},
   'pdf-to-docx':{accept:'.pdf,application/pdf',label:'Choose a PDF',hint:'PDF · text-focused conversion',idle:'Convert to Word'},
@@ -36,13 +57,30 @@ function init(){
   const kind=document.body.dataset.officeTool;
   const cfg=configs[kind]; if(!cfg) return;
   const input=$('#office-file'),zone=$('#office-drop'),info=$('#office-info'),run=$('#office-run'),clear=$('#office-clear');
+  if(!input || !zone || !info || !run || !clear) return;
+  const allowedExts = kind.includes('docx') ? ['.docx'] : kind.includes('pptx') ? ['.pptx'] : ['.pdf'];
   let file=null;
-  wireInput(input,zone,f=>{
-    file=f && validExt(f, kind.includes('docx')?['.docx']:kind.includes('pptx')?['.pptx']:['.pdf']) ? f:null;
-    info.textContent=file?`${file.name} · ${fmt(file.size)}`:'No file selected.';
-    $('#office-result').innerHTML='';resetProgress();
-  });
-  clear.addEventListener('click',()=>{file=null;input.value='';info.textContent='No file selected.';$('#office-result').innerHTML='';resetProgress();});
+  const setSelectedFile=(candidate)=>{
+    const accepted = candidate && validExt(candidate, allowedExts);
+    file = accepted ? candidate : null;
+    if(file){
+      info.textContent=`Selected: ${file.name} · ${fmt(file.size)}`;
+      run.disabled=false;
+      run.removeAttribute('aria-disabled');
+    }else{
+      info.textContent=candidate ? `Unsupported file type. Please choose ${allowedExts.join(' or ')}.` : 'No file selected.';
+      run.disabled=false;
+      run.removeAttribute('aria-disabled');
+    }
+    const result=$('#office-result');
+    if(result) result.innerHTML='';
+    resetProgress();
+  };
+  wireInput(input,zone,setSelectedFile);
+  // Some browsers populate FileList only after the picker closes; reading it
+  // again on focus makes the UI resilient to that behavior.
+  input.addEventListener('focus',()=>setTimeout(()=>{ if(input.files?.length) setSelectedFile(input.files[0]); },0));
+  clear.addEventListener('click',()=>{file=null;input.value='';info.textContent='No file selected.';const result=$('#office-result');if(result) result.innerHTML='';resetProgress();});
   run.addEventListener('click',async()=>{
     if(!file)return showResult(`Choose a ${kind.includes('pptx')?'PPTX':kind.includes('docx')?'DOCX':'PDF'} file first.`,true);
     setBusy(true,cfg.idle,'Converting…'); resetProgress(); setProgress(2,'Loading conversion engine…');
