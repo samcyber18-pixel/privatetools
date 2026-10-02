@@ -65,24 +65,28 @@ async function docxToPdf(file){
   if(!window.docx || typeof window.docx.parseAsync !== 'function' || typeof window.docx.renderDocument !== 'function'){
     throw new Error('The Word rendering library did not load correctly. Reload the page and try again.');
   }
+  if(!window.Paged || typeof window.Paged.Previewer !== 'function'){
+    throw new Error('The pagination engine did not load. Reload the page and try again.');
+  }
+  if(!window.html2canvas) throw new Error('The PDF rendering library did not load. Reload the page and try again.');
+
   const {jsPDF}=await jspdfLib();
-  setProgress(8,'Reading Word document…');
+  setProgress(6,'Reading Word document…');
 
   let stage=document.querySelector('#conversion-stage');
   if(!stage){
     stage=document.createElement('div');
     stage.id='conversion-stage';
-    stage.className='docx-conversion-stage';
-    stage.setAttribute('aria-hidden','true');
     document.body.appendChild(stage);
   }
   stage.replaceChildren();
+  stage.className='docx-conversion-stage';
 
   const styleHost=document.createElement('div');
-  const bodyHost=document.createElement('div');
+  const renderHost=document.createElement('div');
   styleHost.className='docx-style-host';
-  bodyHost.className='docx-body-host';
-  stage.append(styleHost, bodyHost);
+  renderHost.className='docx-body-host';
+  stage.append(styleHost,renderHost);
 
   const options={
     inWrapper:true,
@@ -106,169 +110,127 @@ async function docxToPdf(file){
   const doc=await window.docx.parseAsync(await file.arrayBuffer(), options);
   const nodes=await window.docx.renderDocument(doc, options);
   if(!Array.isArray(nodes) || nodes.length===0) throw new Error('The Word document could not be rendered.');
-  for(const node of nodes){
-    (node.nodeName === 'STYLE' ? styleHost : bodyHost).appendChild(node);
-  }
 
-  await waitForFonts();
-  await nextFrame();
+  const styleNodes=nodes.filter(n=>n && n.nodeName==='STYLE');
+  const bodyNodes=nodes.filter(n=>n && n.nodeName!=='STYLE');
+  for(const node of styleNodes) styleHost.appendChild(node);
+  for(const node of bodyNodes) renderHost.appendChild(node);
 
-  const sourcePages=[...bodyHost.querySelectorAll('.docx-wrapper>section.docx')];
-  if(!sourcePages.length) throw new Error('No Word page container was produced.');
+  if(document.fonts?.ready) await document.fonts.ready;
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
-  // docx-preview honors explicit/page-break markers, but it does not perform
-  // live re-pagination for ordinary flowing text. A normal multi-page Word
-  // file can therefore render as one fixed-height section with the overflow
-  // clipped. We paginate the rendered block-level content ourselves using the
-  // actual Word page height/width produced by the library.
-  const outputWrapper=document.createElement('div');
-  outputWrapper.className='docx-wrapper docx-wrapper-output';
-  bodyHost.appendChild(outputWrapper);
+  const sourcePages=[...renderHost.querySelectorAll('.docx-wrapper>section.docx')];
+  if(!sourcePages.length) throw new Error('The Word document did not produce a usable page layout.');
 
-  const generatedPages=[];
-  for(let si=0; si<sourcePages.length; si++){
-    const source=sourcePages[si];
-    const rect=source.getBoundingClientRect();
-    const pageWidth=rect.width || source.offsetWidth;
-    const pageHeight=rect.height || parseFloat(getComputedStyle(source).minHeight) || source.offsetHeight;
-    if(!pageWidth || !pageHeight) throw new Error(`Word page ${si+1} has no measurable page geometry.`);
+  // Use the first source page to recover the document's page geometry. The
+  // pagination engine will then perform normal overflow fragmentation inside
+  // that page-sized frame instead of relying on source-declared breaks alone.
+  const source=sourcePages[0];
+  const sourceRect=source.getBoundingClientRect();
+  const pageWidth=Math.round(sourceRect.width || source.offsetWidth);
+  const pageHeight=Math.round(sourceRect.height || source.offsetHeight);
+  if(!pageWidth || !pageHeight) throw new Error('Word page dimensions could not be measured.');
 
-    const article=source.querySelector(':scope > article');
-    const header=source.querySelector(':scope > header');
-    const footer=source.querySelector(':scope > footer');
+  const article=source.querySelector(':scope > article') || source;
+  const content=document.createElement('div');
+  content.className='docx-pagination-content';
+  content.innerHTML=article.innerHTML;
 
-    if(!article){
-      const clone=source.cloneNode(true);
-      clone.style.width=`${pageWidth}px`;
-      clone.style.height=`${pageHeight}px`;
-      clone.style.minHeight=`${pageHeight}px`;
-      outputWrapper.appendChild(clone);
-      generatedPages.push(clone);
-      continue;
-    }
+  // Preserve the source Word page's useful visual geometry while deliberately
+  // removing its fixed height. Paged.js then determines where flowing blocks
+  // must break when a page is full.
+  const articleStyle=getComputedStyle(article);
+  const sectionStyle=getComputedStyle(source);
+  content.style.boxSizing='border-box';
+  content.style.width=`${pageWidth}px`;
+  content.style.margin='0';
+  content.style.padding=articleStyle.padding;
+  content.style.fontFamily=articleStyle.fontFamily;
+  content.style.fontSize=articleStyle.fontSize;
+  content.style.lineHeight=articleStyle.lineHeight;
+  content.style.color=articleStyle.color;
+  content.style.background=sectionStyle.background;
 
-    const articleRect=article.getBoundingClientRect();
-    const footerTop=footer ? footer.getBoundingClientRect().top : (rect.top+pageHeight);
-    const usableHeight=Math.max(1, footerTop-articleRect.top);
-    const children=[...article.children];
+  const pagedRoot=document.createElement('div');
+  pagedRoot.id='paged-root';
+  pagedRoot.className='paged-output';
+  stage.appendChild(pagedRoot);
+  const pageMmW=pageWidth*25.4/96;
+  const pageMmH=pageHeight*25.4/96;
 
-    // If this section already contains separate source page content, keep it;
-    // otherwise split its flowing blocks across as many physical pages as are
-    // necessary. We use block boundaries so text is not sliced mid-line.
-    let groups=[[]];
-    let groupStartTop=null;
-    for(const child of children){
-      const cr=child.getBoundingClientRect();
-      const top=cr.top-articleRect.top;
-      const bottom=cr.bottom-articleRect.top;
-      if(groupStartTop===null) groupStartTop=top;
-      const wouldOverflow = groups[groups.length-1].length>0 && (bottom-groupStartTop)>usableHeight+0.5;
-      if(wouldOverflow){
-        groups.push([]);
-        groupStartTop=top;
-      }
-      groups[groups.length-1].push(child);
-    }
-    if(!groups.length || !groups[0].length) groups=[[]];
+  const paginationCss=`
+    @page { size: ${pageMmW}mm ${pageMmH}mm; margin: 0; }
+    .paged-output { width: ${pageWidth}px; }
+    .docx-pagination-content { width: ${pageWidth}px; box-sizing: border-box; overflow: visible; }
+    .docx-pagination-content, .docx-pagination-content * { max-width: none; }
+    .pagedjs_pages { margin: 0 !important; padding: 0 !important; }
+    .pagedjs_page { margin: 0 !important; }
+    .pagedjs_sheet { margin: 0 !important; overflow: hidden !important; }
+    .pagedjs_area { overflow: visible !important; }
+  `;
 
-    for(let gi=0; gi<groups.length; gi++){
-      const page=source.cloneNode(false);
-      page.style.width=`${pageWidth}px`;
-      page.style.height=`${pageHeight}px`;
-      page.style.minHeight=`${pageHeight}px`;
-      page.style.overflow='hidden';
+  // Paged.js accepts the rendered DOCX CSS as inline stylesheet objects.
+  // Keeping it in the same preview document preserves fonts, paragraph styles,
+  // tables, images, headers and footers as far as the DOCX renderer exposes them.
+  const docxStyles=styleNodes
+    .map(el=>({[window.location.href]:el.textContent || ''}))
+    .filter(x=>Object.values(x)[0]);
+  docxStyles.push({[window.location.href]:paginationCss});
 
-      if(header) page.appendChild(header.cloneNode(true));
-      const pageArticle=article.cloneNode(false);
-      pageArticle.innerHTML='';
-      pageArticle.style.minHeight='0';
-      pageArticle.style.height='auto';
-      for(const child of groups[gi]) pageArticle.appendChild(child.cloneNode(true));
-      page.appendChild(pageArticle);
-      if(footer) page.appendChild(footer.cloneNode(true));
+  stage.style.display='block';
+  stage.style.position='absolute';
+  stage.style.left='-20000px';
+  stage.style.top='0';
+  stage.style.width=`${pageWidth}px`;
+  stage.style.background='#fff';
+  stage.style.zIndex='-1';
 
-      outputWrapper.appendChild(page);
-      generatedPages.push(page);
-    }
-  }
+  setProgress(18,'Paginating document…');
+  const previewer=new window.Paged.Previewer();
+  const flow=await previewer.preview(content, docxStyles, pagedRoot);
+  if(!flow || !flow.total) throw new Error('The pagination engine did not produce any pages.');
 
-  if(!generatedPages.length) throw new Error('No Word pages could be generated.');
+  if(document.fonts?.ready) await document.fonts.ready;
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
-  // Hide the original renderer output now that all measurements/clones are complete.
-  // It remains in the DOM so its computed styles stay valid while generated pages render.
-  for(const source of sourcePages) source.style.display='none';
+  const pages=[...pagedRoot.querySelectorAll('.pagedjs_page')];
+  if(!pages.length) throw new Error('No paginated Word pages were produced.');
 
-  await nextFrame();
-  await waitForFonts();
-  await nextFrame();
-
-  const measured=generatedPages.map((page,index)=>{
-    const r=page.getBoundingClientRect();
-    const width=r.width || page.offsetWidth;
-    const height=r.height || page.offsetHeight;
-    if(!width || !height) throw new Error(`Word page ${index+1} has no measurable layout.`);
-    return {page,width,height};
-  });
-
-  setProgress(22,`Paginated ${measured.length} Word page${measured.length===1?'':'s'}; preparing PDF…`);
-
-  const pxToMm=25.4/96;
-  const first=measured[0];
+  setProgress(28,`Preparing ${pages.length} PDF page${pages.length===1?'':'s'}…`);
   const pdf=new jsPDF({
-    orientation:first.width>=first.height?'landscape':'portrait',
+    orientation:pageWidth>=pageHeight?'landscape':'portrait',
     unit:'mm',
-    format:[first.width*pxToMm,first.height*pxToMm],
+    format:[pageMmW,pageMmH],
     compress:true
   });
 
-  for(let i=0;i<measured.length;i++){
-    const {page,width,height}=measured[i];
-    const previous={position:page.style.position,left:page.style.left,top:page.style.top,margin:page.style.margin};
-    page.style.position='relative';
-    page.style.left='0';
-    page.style.top='0';
-    page.style.margin='0';
-    await nextFrame();
+  for(let i=0;i<pages.length;i++){
+    const page=pages[i];
+    const rect=page.getBoundingClientRect();
+    const captureW=Math.max(1,Math.ceil(rect.width));
+    const captureH=Math.max(1,Math.ceil(rect.height));
     const canvas=await html2canvas(page,{
       backgroundColor:'#ffffff',
-      scale:2,
+      scale:1.5,
       useCORS:true,
-      allowTaint:false,
       logging:false,
-      imageTimeout:20000,
-      width:Math.ceil(width),
-      height:Math.ceil(height),
-      scrollX:0,
-      scrollY:0,
-      windowWidth:Math.max(window.innerWidth,Math.ceil(width)),
-      windowHeight:Math.max(window.innerHeight,Math.ceil(height))
+      width:captureW,
+      height:captureH,
+      windowWidth:captureW,
+      windowHeight:captureH
     });
-    page.style.position=previous.position;
-    page.style.left=previous.left;
-    page.style.top=previous.top;
-    page.style.margin=previous.margin;
-
-    if(i){
-      pdf.addPage([width*pxToMm,height*pxToMm],width>=height?'landscape':'portrait');
-    }
-    const jpeg=canvas.toDataURL('image/jpeg',0.95);
-    pdf.addImage(jpeg,'JPEG',0,0,width*pxToMm,height*pxToMm,'FAST');
-    setProgress(22+Math.round((i+1)/measured.length*72),`Added page ${i+1} of ${measured.length}`);
-    canvas.width=1;
-    canvas.height=1;
+    if(i) pdf.addPage([pageMmW,pageMmH],pageWidth>=pageHeight?'landscape':'portrait');
+    const img=canvas.toDataURL('image/jpeg',0.94);
+    pdf.addImage(img,'JPEG',0,0,pageMmW,pageMmH,'FAST');
+    setProgress(28+Math.round((i+1)/pages.length*67),`Rendered page ${i+1} of ${pages.length}`);
   }
 
   const blob=pdf.output('blob');
   downloadBlob(blob,`${file.name.replace(/\.docx$/i,'')}.pdf`);
-  showResult(`Done. Created a ${measured.length}-page PDF (${fmt(blob.size)}). <strong>Pagination:</strong> content is split at rendered block boundaries to prevent ordinary multi-page documents from being clipped into a single page. Complex Word-specific layout can still differ from Microsoft Word.`);
-  stage.replaceChildren();
+  showResult(`Done. Created a ${pages.length}-page PDF (${fmt(blob.size)}). <strong>Note:</strong> browser rendering can still differ from Microsoft Word for advanced features, but normal flowing document content is paginated by the browser pagination engine.`);
+  try{previewer.dispose?.()}catch{}
 }
 
-function groupPdfText(items){
-  const lines=[];
-  for(const item of items){const text=(item.str||'').trim();if(!text)continue;const y=Math.round(item.transform?.[5]||0);const x=item.transform?.[4]||0;let line=lines.find(l=>Math.abs(l.y-y)<=3);if(!line){line={y,parts:[]};lines.push(line)}line.parts.push({x,text});}
-  lines.sort((a,b)=>b.y-a.y);return lines.map(l=>l.parts.sort((a,b)=>a.x-b.x).map(p=>p.text).join(' ')).filter(Boolean);
-}
 async function pdfToDocx(file){
   const pdfjs=await pdfJs();const {Document,Packer,Paragraph,TextRun,HeadingLevel}=await docxLib();
   setProgress(12,'Opening PDF…');const data=new Uint8Array(await file.arrayBuffer());const pdf=await pdfjs.getDocument({data}).promise;const paras=[];
